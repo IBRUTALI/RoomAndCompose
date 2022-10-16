@@ -16,16 +16,14 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            val mContext = LocalContext.current
             val viewModel: MainViewModel = viewModel(
                 this,
                 "MainViewModel",
-                MainViewModelFactory(mContext.applicationContext as Application)
+                MainViewModelFactory(LocalContext.current.applicationContext as Application)
             )
-            val list = viewModel.getAllItem().observeAsState(listOf())
             RoomRestoreTheme {
                 Surface(color = MaterialTheme.colors.background) {
-                    ScreenSetup(list = list, viewModel = viewModel, context = mContext)
+                    ScreenSetup(viewModel = viewModel)
                 }
             }
         }

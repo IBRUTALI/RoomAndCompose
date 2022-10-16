@@ -2,16 +2,22 @@ package com.example.roomrestore
 
 import android.app.Application
 import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.asLiveData
+import kotlinx.coroutines.*
 
 class MainViewModel(application: Application) : ViewModel() {
 
     private val allData: LiveData<List<Item>>
-    private val db = MainDatabase.getDB(application)
+    private val itemDB = MainDatabase.getDB(application)
+    private val itemDao = itemDB.itemDao()
+    private val coroutineScope = CoroutineScope(Dispatchers.Main)
+    val searchResults: MutableLiveData<List<Item>>
 
     init {
-        allData = db.itemDao().getAll().asLiveData()
+        allData = itemDao.getAll()
+        searchResults = MutableLiveData<List<Item>>()
     }
 
     fun getAllItem(): LiveData<List<Item>> {
@@ -19,26 +25,33 @@ class MainViewModel(application: Application) : ViewModel() {
     }
 
     fun findItemByTitle(title: String): LiveData<List<Item>> {
-            return db.itemDao().findByTitle(title).asLiveData()
+            return itemDao.findByTitle(title).asLiveData()
     }
 
-    fun findItemById(id: Int): LiveData<List<Item>> {
-        return db.itemDao().findById(id).asLiveData()
+    fun findItemById(id: Int) {
+        coroutineScope.launch(Dispatchers.Main) {
+        searchResults.value = asyncFind(id).await()
+        }
     }
 
     fun findItemByRate(rate: Int): LiveData<List<Item>> {
-        return db.itemDao().findByRate(rate).asLiveData()
+        return itemDao.findByRate(rate).asLiveData()
     }
 
     fun insertItem(item: Item) {
-        Thread {
-            db.itemDao().insertData(item)
-        }.start()
+        coroutineScope.launch(Dispatchers.IO) {
+            itemDao.insertData(item)
+        }
     }
 
     fun deleteItem(item: Item) {
-        Thread {
-            db.itemDao().deleteData(item)
-        }.start()
+        coroutineScope.launch(Dispatchers.IO) {
+            itemDao.deleteData(item)
+        }
     }
+
+    private fun asyncFind(id: Int): Deferred<List<Item>?> =
+        coroutineScope.async(Dispatchers.IO) {
+            return@async itemDao.findById(id)
+        }
 }

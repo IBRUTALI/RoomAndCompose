@@ -8,9 +8,11 @@ import com.example.roomrestore.ui.ItemDao
 
 @Database(entities = [Item::class], version = 1)
 abstract class MainDatabase : RoomDatabase() {
+
     abstract fun itemDao(): ItemDao
 
     companion object {
+
         fun getDB(context: Context): MainDatabase {
             return Room.databaseBuilder(
                 context.applicationContext,

@@ -13,9 +13,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -27,72 +29,93 @@ import com.example.roomrestore.ui.theme.Gold200
 import com.example.roomrestore.ui.theme.White200
 
 @Composable
-fun ScreenSetup(list: State<List<Item>>, viewModel: MainViewModel, context: Context) {
-    val listItem = remember {
-        mutableStateOf<List<Item>>(listOf())
-    }
-    listItem.value = list.value
+fun ScreenSetup(viewModel: MainViewModel) {
+    val mContext = LocalContext.current
+    val allItem = viewModel.getAllItem().observeAsState(listOf())
+    val searchResults = viewModel.searchResults.observeAsState(listOf())
+
+    MainScreen(
+        allItem = allItem,
+        searchResults = searchResults,
+        viewModel = viewModel,
+        context = mContext
+    )
+}
+
+@Composable
+fun MainScreen(
+    allItem: State<List<Item>>,
+    searchResults: State<List<Item>>,
+    viewModel: MainViewModel,
+    context: Context
+) {
+    val openDialog = remember { mutableStateOf(false) }
+    val openSortDialog = remember { mutableStateOf(false) }
+    val selectedIndex = remember { mutableStateOf(0) }
+    val searching = remember { mutableStateOf(false) }
+    val list = if (searching.value) searchResults else allItem
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(5.dp),
-        verticalArrangement = Arrangement.SpaceBetween,
-        horizontalAlignment = Alignment.CenterHorizontally
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
-        MainScreen(listItem, viewModel, context)
-    }
-}
-
-@Composable
-fun MainScreen(listItem: MutableState<List<Item>>, viewModel: MainViewModel, context: Context) {
-    val openDialog = remember { mutableStateOf(false) }
-    val openSortDialog = remember { mutableStateOf(false) }
-    Column(
-        verticalArrangement = Arrangement.Top
-    ) {
-        LazyColumnItem(listItem.value)
-    }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 10.dp),
-        verticalArrangement = Arrangement.Bottom
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+        Column(
+            verticalArrangement = Arrangement.Top
         ) {
-            FloatingActionButton(
-                modifier = Modifier.size(40.dp),
-                onClick = { openSortDialog.value = true },
-                backgroundColor = Gold200
-            ) {
-                Image(
-                    modifier = Modifier.size(30.dp),
-                    painter = painterResource(id = R.drawable.ic_baseline_sort_24),
-                    contentDescription = "sort_item"
-                )
-            }
-            FloatingActionButton(
-                modifier = Modifier.size(40.dp),
-                onClick = { openDialog.value = true },
-                backgroundColor = Gold200
-            ) {
-                Image(
-                    modifier = Modifier.size(30.dp),
-                    painter = painterResource(id = R.drawable.ic_baseline_add_24),
-                    contentDescription = "add_item"
-                )
-            }
-        }
-        if (openDialog.value) {
-            AlertDialogItem(openDialog = openDialog, viewModel = viewModel)
+            LazyColumnItem(list.value)
         }
 
-        if (openSortDialog.value) {
-            SortDialogItem(openSortDialog = openSortDialog, viewModel = viewModel, listItem = listItem, context = context)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 10.dp),
+            verticalArrangement = Arrangement.Bottom
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                FloatingActionButton(
+                    modifier = Modifier.size(40.dp),
+                    onClick = { openSortDialog.value = true },
+                    backgroundColor = Gold200
+                ) {
+                    Image(
+                        modifier = Modifier.size(30.dp),
+                        painter = painterResource(id = R.drawable.ic_baseline_sort_24),
+                        contentDescription = "sort_item"
+                    )
+                }
+
+                FloatingActionButton(
+                    modifier = Modifier.size(40.dp),
+                    onClick = { openDialog.value = true },
+                    backgroundColor = Gold200
+                ) {
+                    Image(
+                        modifier = Modifier.size(30.dp),
+                        painter = painterResource(id = R.drawable.ic_baseline_add_24),
+                        contentDescription = "add_item"
+                    )
+                }
+            }
         }
+    }
+    if (openDialog.value) {
+        AlertDialogItem(openDialog = openDialog, viewModel = viewModel)
+    }
+
+    if (openSortDialog.value) {
+        SortDialogItem(
+            openSortDialog = openSortDialog,
+            searching = searching,
+            selectedIndex = selectedIndex,
+            viewModel = viewModel,
+            context = context
+        )
     }
 }
 
@@ -195,15 +218,15 @@ fun AlertDialogItem(openDialog: MutableState<Boolean>, viewModel: MainViewModel)
 @Composable
 fun SortDialogItem(
     openSortDialog: MutableState<Boolean>,
+    searching: MutableState<Boolean>,
+    selectedIndex: MutableState<Int>,
     viewModel: MainViewModel,
-    listItem: MutableState<List<Item>>,
     context: Context
 ) {
     val title = remember { mutableStateOf("") }
     val id = remember { mutableStateOf("") }
     val expanded = remember { mutableStateOf(false) }
     val dropList = listOf("ID", "Title")
-    val selectedIndex = remember { mutableStateOf(0) }
     AlertDialog(
         onDismissRequest = {
             openSortDialog.value = false
@@ -246,15 +269,20 @@ fun SortDialogItem(
             Button(
                 onClick = {
                     openSortDialog.value = false
+                    searching.value = true
                     try {
-                            listItem.value = if (selectedIndex.value == 0)
-                                viewModel.findItemById(id.value.toInt()).value!!
-                            else viewModel.findItemByTitle(title.value).value!!
+                        if (selectedIndex.value == 0)
+                            viewModel.findItemById(id.value.toInt())
+                        else viewModel.findItemByTitle(title.value)
                     } catch (e: NullPointerException) {
                         Toast.makeText(context, "Объект не найден", Toast.LENGTH_SHORT).show()
                         Log.d("MyLog", "${e.message}")
                     } catch (e: NumberFormatException) {
-                        Toast.makeText(context, "Неверный формат ввода данных для поиска", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(
+                            context,
+                            "Неверный формат ввода данных для поиска",
+                            Toast.LENGTH_SHORT
+                        ).show()
                         Log.d("MyLog", "${e.message}")
                     }
 
