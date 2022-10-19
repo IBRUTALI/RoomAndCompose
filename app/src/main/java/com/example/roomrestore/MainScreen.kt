@@ -31,7 +31,7 @@ import com.example.roomrestore.ui.theme.White200
 @Composable
 fun ScreenSetup(viewModel: MainViewModel) {
     val mContext = LocalContext.current
-    val allItem = viewModel.getAllItem().observeAsState(listOf())
+    val allItem = viewModel.allData.observeAsState(listOf())
     val searchResults = viewModel.searchResults.observeAsState(listOf())
 
     MainScreen(
@@ -272,8 +272,8 @@ fun SortDialogItem(
                     searching.value = true
                     try {
                         if (selectedIndex.value == 0)
-                            viewModel.findItemById(id.value.toInt())
-                        else viewModel.findItemByTitle(title.value)
+                            viewModel.findById(id.value.toInt())
+                        else viewModel.findByTitle(title.value)
                     } catch (e: NullPointerException) {
                         Toast.makeText(context, "Объект не найден", Toast.LENGTH_SHORT).show()
                         Log.d("MyLog", "${e.message}")

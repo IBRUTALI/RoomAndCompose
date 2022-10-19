@@ -9,49 +9,32 @@ import kotlinx.coroutines.*
 
 class MainViewModel(application: Application) : ViewModel() {
 
-    private val allData: LiveData<List<Item>>
-    private val itemDB = MainDatabase.getDB(application)
-    private val itemDao = itemDB.itemDao()
-    private val coroutineScope = CoroutineScope(Dispatchers.Main)
+    val allData: LiveData<List<Item>>
+    private val repository: ItemRepository
     val searchResults: MutableLiveData<List<Item>>
 
     init {
-        allData = itemDao.getAll()
-        searchResults = MutableLiveData<List<Item>>()
-    }
+        val itemDB = MainDatabase.getDB(application)
+        val itemDao = itemDB.itemDao()
+        repository = ItemRepository(itemDao)
 
-    fun getAllItem(): LiveData<List<Item>> {
-        return allData
-    }
-
-    fun findItemByTitle(title: String): LiveData<List<Item>> {
-            return itemDao.findByTitle(title).asLiveData()
-    }
-
-    fun findItemById(id: Int) {
-        coroutineScope.launch(Dispatchers.Main) {
-        searchResults.value = asyncFind(id).await()
-        }
-    }
-
-    fun findItemByRate(rate: Int): LiveData<List<Item>> {
-        return itemDao.findByRate(rate).asLiveData()
+        allData = repository.getAllItem()
+        searchResults = repository.searchResults
     }
 
     fun insertItem(item: Item) {
-        coroutineScope.launch(Dispatchers.IO) {
-            itemDao.insertData(item)
-        }
+        repository.insertItem(item)
+    }
+
+    fun findById(id: Int) {
+        repository.findItemById(id)
+    }
+
+    fun findByTitle(title: String) {
+        repository.findItemByTitle(title)
     }
 
     fun deleteItem(item: Item) {
-        coroutineScope.launch(Dispatchers.IO) {
-            itemDao.deleteData(item)
-        }
+        repository.deleteItem(item)
     }
-
-    private fun asyncFind(id: Int): Deferred<List<Item>?> =
-        coroutineScope.async(Dispatchers.IO) {
-            return@async itemDao.findById(id)
-        }
 }
